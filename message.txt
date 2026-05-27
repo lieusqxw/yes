@@ -42,6 +42,9 @@ SELECT name,
 FROM products
 GROUP BY name
 HAVING COUNT(*) > 1;
+
+
+
 Билет № 2
 Теоретическая часть
 Вопрос: Объясните, что делает данный SQL-запрос. Что такое LEFT JOIN? Почему условие WHERE o.id IS NULL находит нужные строки?
@@ -93,6 +96,9 @@ SELECT o.id, o.customer_id, o.order_date
 FROM orders o
 LEFT JOIN order_items oi ON oi.order_id = o.id
 WHERE oi.id IS NULL;
+
+
+
 Билет № 3
 Теоретическая часть
 Вопрос: Объясните назначение данного SQL-кода. Что такое триггер? Что означают ключевые слова AFTER UPDATE, FOR EACH ROW, OLD, NEW?
@@ -152,6 +158,9 @@ END;
 INSERT INTO orders VALUES (1, 'новый');
 UPDATE orders SET status = 'доставлен' WHERE id = 1;
 SELECT * FROM event_log;
+
+
+
 Билет № 4
 Теоретическая часть
 Вопрос: Объясните, что делает данный триггер. Чем отличается псевдозапись OLD от NEW? В каких событиях (INSERT, UPDATE, DELETE) каждая из них доступна?
@@ -211,6 +220,9 @@ END;
 INSERT INTO products VALUES (1, 'Телефон', 30000);
 DELETE FROM products WHERE id = 1;
 SELECT * FROM event_log;
+
+
+
 Билет № 5
 Теоретическая часть
 Вопрос: Объясните, что делает данный Python-код. Для чего используется sqlite3.connect(':memory:')? Что делает conn.row_factory = sqlite3.Row?
@@ -305,6 +317,9 @@ WHERE stock = 0;
 SELECT 'Нулевой остаток' AS тип, COUNT(*) AS количество FROM products WHERE stock = 0
 UNION ALL
 SELECT 'Цена < 1000' AS тип, COUNT(*) FROM products WHERE price < 1000;
+
+
+
 Билет № 7
 Теоретическая часть
 Вопрос: Объясните данный SQL-запрос. Что такое «ошибка ссылочной целостности»? Зачем используется LEFT JOIN вместо обычного JOIN?
@@ -348,6 +363,9 @@ SELECT o.id, o.customer_id
 FROM orders o
 LEFT JOIN customers c ON o.customer_id = c.id
 WHERE c.id IS NULL;
+
+
+
 Билет № 8
 Теоретическая часть
 Вопрос: Объясните данный SQL-запрос. Какой класс ошибок он выявляет? Что делает функция date() в SQLite? Почему проверяется date(order_date) IS NULL?
@@ -381,6 +399,9 @@ INSERT INTO orders VALUES
 SELECT id, order_date, status
 FROM orders
 WHERE date(order_date) IS NULL;
+
+
+
 Билет № 9
 Теоретическая часть
 Вопрос: Объясните, что делает данный SQL-код. Что такое EXPLAIN QUERY PLAN? Что означают фразы SCAN orders и SEARCH orders USING INDEX в результате?
@@ -426,6 +447,9 @@ CREATE INDEX idx_city ON customers(city);
 EXPLAIN QUERY PLAN
 SELECT * FROM customers WHERE city = 'Москва';
 -- Ожидаем: SEARCH customers USING INDEX idx_city
+
+
+
 Билет № 10
 Теоретическая часть
 Вопрос: Объясните данный SQL-код. Что такое составной индекс? Почему составной индекс (customer_id, order_date) работает при фильтрации только по customer_id, но не работает при фильтрации только по order_date?
@@ -475,6 +499,9 @@ SELECT * FROM order_items WHERE product_id = 100;
 EXPLAIN QUERY PLAN
 SELECT * FROM order_items WHERE order_id = 10 AND product_id = 100;
 -- Будет SEARCH USING INDEX (использует обе колонки)
+
+
+
 Билет № 11
 Теоретическая часть
 Вопрос: Объясните данный SQL-код. Что такое частичный индекс? В чём его преимущество перед обычным индексом в данном случае?
@@ -515,6 +542,9 @@ EXPLAIN QUERY PLAN
 SELECT * FROM products
 WHERE stock > 0 AND name = 'Телефон';
 -- Должен использовать частичный индекс
+
+
+
 Билет № 12
 Теоретическая часть
 Вопрос: Объясните данный SQL-код. Что означает SCAN COVERING INDEX в плане запроса? Чем покрывающий индекс отличается от обычного?
@@ -556,6 +586,9 @@ FROM orders
 WHERE status = 'новый'
 ORDER BY order_date;
 -- Должен быть SCAN COVERING INDEX idx_status_date
+
+
+
 Билет № 13
 Теоретическая часть
 Вопрос: Объясните данный SQL-код. Что делает PRAGMA index_list? Что произойдёт с запросами, которые использовали удалённый индекс? Когда стоит удалять индексы?
@@ -596,6 +629,9 @@ DROP INDEX IF EXISTS idx_price;
 
 -- Снова список
 PRAGMA index_list('products');
+
+
+
 Билет № 14
 Теоретическая часть
 Вопрос: Объясните данный Python-код. Зачем используется timeit.timeit? Почему запрос выполняется 500 раз, а не один? Что возвращает функция measure_query?
@@ -642,6 +678,9 @@ CREATE INDEX idx_cat ON products(category);
 EXPLAIN QUERY PLAN
 SELECT * FROM products WHERE category = 'Электроника';
 -- Результат: SEARCH products USING INDEX idx_cat
+
+
+
 Билет № 15
 Теоретическая часть
 Вопрос: Объясните данный SQL-код. Что такое уникальный индекс? Чем он отличается от обычного индекса? Что произойдёт при попытке вставить запись с дублирующимся значением?
@@ -674,6 +713,9 @@ INSERT INTO products (name, article) VALUES ('Ноутбук', 'ART002');
 -- Попытка вставить дубликат артикула (вызовет ошибку)
 INSERT INTO products (name, article) VALUES ('Планшет', 'ART001');
 -- Ожидаем: UNIQUE constraint failed: products.article
+
+
+
 Билет № 16
 Теоретическая часть
 Вопрос: Объясните данный Python-код. Что делает функция show_query_plan? Что хранится в row[3]? Почему планы запросов до и после создания индексов различаются?
@@ -720,6 +762,9 @@ EXPLAIN QUERY PLAN
 SELECT * FROM products WHERE category = 'Электроника';
 -- detail: SEARCH products USING INDEX idx_category
 -- Изменилось: вместо полного сканирования используется индекс.
+
+
+
 Билет № 17
 Теоретическая часть
 Вопрос: Объясните структуру данного SQL-дампа. Зачем в начале стоят команды DROP TABLE IF EXISTS? Почему таблицы удаляются в определённом порядке (сначала order_items, потом orders)? Что означает «SQL-дамп» как инструмент резервного копирования?
@@ -750,6 +795,9 @@ INSERT INTO products (name, category, price, stock) VALUES
     ('Смартфон', 'Электроника', 25000, 15),
     ('Наушники', 'Электроника',  1200, 30),
     ('Чехол',    'Аксессуары',    400, 100);
+
+
+
 Билет № 18
 Теоретическая часть
 Вопрос: Объясните данный SQL-код. Что такое транзакция? Что означают команды BEGIN, COMMIT, ROLLBACK? Что произойдёт с данными, если выполнить ROLLBACK вместо COMMIT?
@@ -793,6 +841,9 @@ COMMIT;
 -- Проверка
 SELECT * FROM orders;
 SELECT * FROM order_items;
+
+
+
 Билет № 19
 Теоретическая часть
 Вопрос: Объясните данный SQL-код. Зачем нужен ROLLBACK при восстановлении из резервной копии? Что означает «атомарность транзакции»? В каком состоянии окажется БД после ROLLBACK?
@@ -823,6 +874,9 @@ INSERT INTO products (name) VALUES ('Товар B');
 ROLLBACK;
 
 SELECT COUNT(*) FROM products;  -- Вернёт 0
+
+
+
 Билет № 20
 Теоретическая часть
 Вопрос: Объясните данный SQL-код. Что такое SAVEPOINT? В чём отличие ROLLBACK TO savepoint_name от полного ROLLBACK? В каком сценарии сопровождения ИС это полезно?
@@ -865,6 +919,9 @@ INSERT INTO customers (name) VALUES ('Мария');
 COMMIT;
 
 SELECT * FROM customers;  -- Иван и Мария
+
+
+
 Билет № 21
 Теоретическая часть
 Вопрос: Объясните данный SQL-код. Что такое «миграция схемы»? Зачем нужна таблица schema_migrations? Что означает IF NOT EXISTS в запросе проверки?
@@ -898,6 +955,9 @@ INSERT INTO schema_migrations (version, description, applied_at) VALUES
     ('0003', 'Индексы на orders', datetime('now'));
 
 SELECT * FROM schema_migrations;
+
+
+
 Билет № 22
 Теоретическая часть
 Вопрос: Объясните данный SQL-код. Что делает команда ALTER TABLE ... ADD COLUMN? Почему после добавления столбца выполняется UPDATE? Какие операции с таблицами не поддерживаются в SQLite напрямую?
@@ -937,6 +997,9 @@ VALUES ('0001', 'Добавление поля discount', datetime('now'));
 COMMIT;
 
 SELECT * FROM products;
+
+
+
 Билет № 23
 Теоретическая часть
 Вопрос: Объясните данный Python-код. Что делает функция generate_dump? Что хранится в таблице sqlite_master? Зачем в дампе используются команды DROP TABLE IF EXISTS?
@@ -979,6 +1042,9 @@ INSERT INTO order_items (order_id, product_id, quantity) VALUES
 
 -- Проверка восстановления
 SELECT COUNT(*) FROM order_items;  -- Должно быть 3
+
+
+
 Билет № 24
 Теоретическая часть
 Вопрос: Объясните данный Python-код. Что такое unittest.TestCase? Почему методы тестов должны начинаться с префикса test_? Что делают методы setUp и tearDown?
@@ -1028,6 +1094,9 @@ INSERT INTO customers (last_name, first_name, email) VALUES (NULL, 'Ольга',
 -- Сценарий 3: корректная вставка
 INSERT INTO customers (last_name, first_name, email) VALUES ('Сидорова', 'Ольга', 's@mail.ru');
 SELECT * FROM customers;
+
+
+
 Билет № 25
 Теоретическая часть
 Вопрос: Объясните данный Python-код. Почему для тестирования используется sqlite3.connect(':memory:'), а не реальная база данных? Что произойдёт с данными после вызова tearDown?
@@ -1075,6 +1144,9 @@ SELECT last_name FROM customers WHERE email = 'p@mail.ru';  -- Ожидаетс�
 
 -- Тест 3: несуществующий id
 SELECT COUNT(*) FROM customers WHERE id = 9999;  -- Ожидается 0
+
+
+
 Билет № 26
 Теоретическая часть
 Вопрос: Объясните данный Python-код. Что делает assertRaises? Чем Failure (F) отличается от Error (E) в результатах запуска тестов? Что означают символы ., F, E при выводе результатов?
@@ -1117,6 +1189,9 @@ INSERT INTO products (name, price, stock) VALUES ('Ноутбук', 0, 5);
 INSERT INTO products (name, price, stock) VALUES ('Планшет', 15000, -1);
 
 SELECT * FROM products;  -- Только первый товар
+
+
+
 Билет № 27
 Теоретическая часть
 Вопрос: Объясните данный Python-код. Что такое интеграционный тест? Чем он отличается от модульного? Какие assert-методы используются и что каждый из них проверяет?
@@ -1180,6 +1255,10 @@ SELECT SUM(quantity * price_at_order) AS total FROM order_items WHERE order_id =
 -- Шаг 5: попытка вставить заказ с несуществующим customer_id
 PRAGMA foreign_keys = ON;  -- включить проверку внешних ключей
 INSERT INTO orders (customer_id) VALUES (9999);  -- Ошибка FOREIGN KEY constraint failed
+
+
+
+
 Билет № 28
 Теоретическая часть
 Вопрос: Объясните данный Python-код. Что такое паттерн AAA (Arrange — Act — Assert)? Определите три блока AAA в каждом тесте. Что делают методы assertEqual, assertGreater, assertAlmostEqual?
@@ -1249,6 +1328,9 @@ SELECT COALESCE(SUM(quantity * price_at_order), 0) FROM order_items WHERE order_
 -- Сценарий 4 (скидка 10% на сумму заказа 1)
 SELECT ROUND(SUM(quantity * price_at_order) * 0.9, 2) FROM order_items WHERE order_id = 1;
 -- Ожидается 2700
+
+
+
 Билет № 29
 Теоретическая часть
 Вопрос: Объясните данный Python-код. Что такое TestSuite? Зачем объединять тесты в набор? Что делает unittest.TextTestRunner(verbosity=2)? Чем verbosity=2 отличается от verbosity=1?
@@ -1319,6 +1401,9 @@ SELECT city, COUNT(*) FROM customers GROUP BY city;
 SELECT category, MAX(price) FROM products GROUP BY category;
 -- общая стоимость товаров на складе
 SELECT SUM(price * stock) AS total_value FROM products;
+
+
+
 Билет № 30
 Теоретическая часть
 Вопрос: Объясните данный Python-код. Что такое регрессионное тестирование? Почему setUp создаёт БД заново перед каждым тестом, а не один раз для всего класса? Какие операции проверяет данный тест-кейс?
