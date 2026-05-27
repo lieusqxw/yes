@@ -1,0 +1,1370 @@
+Билет № 1
+Теоретическая часть
+Вопрос: Объясните, что делает следующий SQL-запрос. Какой класс ошибок данных он выявляет? Что означает HAVING COUNT(*) > 1?
+
+sql
+SELECT last_name, first_name, city,
+       COUNT(*) AS количество,
+       GROUP_CONCAT(id, ', ') AS id_list
+FROM customers
+GROUP BY last_name, first_name, city
+HAVING COUNT(*) > 1;
+Ответ:
+Запрос ищет дублирующиеся записи в таблице customers по комбинации полей last_name, first_name, city. Для каждой такой группы подсчитывает количество дублей (COUNT(*)) и собирает через запятую все id дублей (GROUP_CONCAT).
+Класс ошибок: избыточность / неконсистентность данных (должно быть уникально, но есть повторы).
+HAVING COUNT(*) > 1 – фильтрует группы, оставляя только те, где количество записей больше 1 (т.е. есть дубликаты).
+
+Практическая часть
+Задание: Создайте таблицу products и напишите SQL-запрос, который находит товары с одинаковым названием (name), выводя количество дублей и их id.
+
+Выполнение:
+
+sql
+-- Создание таблицы
+CREATE TABLE products (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    name TEXT NOT NULL,
+    price REAL
+);
+
+-- Вставка тестовых данных (несколько дублей по name)
+INSERT INTO products (name, price) VALUES
+    ('Телефон', 30000),
+    ('Ноутбук', 50000),
+    ('Телефон', 32000),
+    ('Планшет', 15000),
+    ('Телефон', 31000);
+
+-- Запрос для поиска дублирующихся названий
+SELECT name,
+       COUNT(*) AS количество,
+       GROUP_CONCAT(id, ', ') AS id_list
+FROM products
+GROUP BY name
+HAVING COUNT(*) > 1;
+Билет № 2
+Теоретическая часть
+Вопрос: Объясните, что делает данный SQL-запрос. Что такое LEFT JOIN? Почему условие WHERE o.id IS NULL находит нужные строки?
+
+sql
+SELECT c.id,
+       c.last_name || ' ' || c.first_name AS клиент,
+       c.email,
+       c.city
+FROM customers c
+LEFT JOIN orders o ON o.customer_id = c.id
+WHERE o.id IS NULL;
+Ответ:
+Запрос находит клиентов, у которых нет ни одного заказа.
+LEFT JOIN – левое внешнее соединение: возвращает всех клиентов из customers и соответствующие заказы из orders; если заказа нет, то поля из orders будут NULL.
+WHERE o.id IS NULL – оставляет только те строки, где заказ не найден (т.е. клиент без заказов).
+
+Практическая часть
+Задание: Создайте таблицы orders и order_items. Напишите запрос, который находит все заказы, у которых нет ни одной позиции в order_items.
+
+Выполнение:
+
+sql
+-- Создание таблиц
+CREATE TABLE orders (
+    id INTEGER PRIMARY KEY,
+    customer_id INTEGER,
+    order_date TEXT
+);
+
+CREATE TABLE order_items (
+    id INTEGER PRIMARY KEY,
+    order_id INTEGER,
+    product_id INTEGER,
+    quantity INTEGER
+);
+
+-- Вставка тестовых данных
+INSERT INTO orders VALUES (1, 101, '2024-11-01');
+INSERT INTO orders VALUES (2, 102, '2024-11-02');
+INSERT INTO orders VALUES (3, 103, '2024-11-03');
+
+INSERT INTO order_items VALUES (1, 1, 1001, 2);
+INSERT INTO order_items VALUES (2, 1, 1002, 1);
+-- У заказа 2 и 3 нет позиций
+
+-- Запрос: заказы без позиций
+SELECT o.id, o.customer_id, o.order_date
+FROM orders o
+LEFT JOIN order_items oi ON oi.order_id = o.id
+WHERE oi.id IS NULL;
+Билет № 3
+Теоретическая часть
+Вопрос: Объясните назначение данного SQL-кода. Что такое триггер? Что означают ключевые слова AFTER UPDATE, FOR EACH ROW, OLD, NEW?
+
+sql
+CREATE TRIGGER trg_log_price_update
+AFTER UPDATE ON products
+FOR EACH ROW
+BEGIN
+    INSERT INTO event_log (table_name, operation, record_id, old_value, new_value, event_time)
+    VALUES ('products', 'UPDATE', OLD.id,
+            CAST(OLD.price AS TEXT),
+            CAST(NEW.price AS TEXT),
+            datetime('now'));
+END;
+Ответ:
+Триггер – это автоматически выполняемое действие при определённом событии в таблице.
+AFTER UPDATE – срабатывает после обновления строки.
+FOR EACH ROW – выполняется для каждой изменённой строки.
+OLD – значения полей строки до изменения (доступно в UPDATE, DELETE).
+NEW – значения полей после изменения (доступно в INSERT, UPDATE).
+Код создаёт триггер, который логирует изменение цены товара: записывает в event_log старую и новую цену.
+
+Практическая часть
+Задание: Создайте таблицы orders и event_log. Напишите триггер trg_log_order_status_update, который записывает в event_log старый и новый статус заказа при его изменении.
+
+Выполнение:
+
+sql
+-- Таблица заказов
+CREATE TABLE orders (
+    id INTEGER PRIMARY KEY,
+    status TEXT
+);
+
+-- Таблица логов
+CREATE TABLE event_log (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    operation TEXT,
+    record_id INTEGER,
+    old_value TEXT,
+    new_value TEXT,
+    event_time TEXT
+);
+
+-- Триггер на обновление статуса
+CREATE TRIGGER trg_log_order_status_update
+AFTER UPDATE ON orders
+FOR EACH ROW
+WHEN OLD.status != NEW.status   -- логируем только реальное изменение
+BEGIN
+    INSERT INTO event_log (operation, record_id, old_value, new_value, event_time)
+    VALUES ('UPDATE', OLD.id, OLD.status, NEW.status, datetime('now'));
+END;
+
+-- Проверка
+INSERT INTO orders VALUES (1, 'новый');
+UPDATE orders SET status = 'доставлен' WHERE id = 1;
+SELECT * FROM event_log;
+Билет № 4
+Теоретическая часть
+Вопрос: Объясните, что делает данный триггер. Чем отличается псевдозапись OLD от NEW? В каких событиях (INSERT, UPDATE, DELETE) каждая из них доступна?
+
+sql
+CREATE TRIGGER trg_log_customer_delete
+AFTER DELETE ON customers
+FOR EACH ROW
+BEGIN
+    INSERT INTO event_log (table_name, operation, record_id, old_value, new_value, event_time)
+    VALUES ('customers', 'DELETE', OLD.id, OLD.email, NULL, datetime('now'));
+END;
+Ответ:
+Триггер записывает в лог информацию об удалении клиента (id и email).
+OLD – значения строки до удаления (для DELETE).
+NEW – значения строки после вставки/обновления.
+Доступность:
+
+INSERT – доступен только NEW.
+
+UPDATE – доступны и OLD, и NEW.
+
+DELETE – доступен только OLD.
+
+Практическая часть
+Задание: Создайте таблицы products и event_log. Напишите триггер trg_log_product_delete, который при удалении товара записывает в event_log его id и название.
+
+Выполнение:
+
+sql
+-- Таблица товаров
+CREATE TABLE products (
+    id INTEGER PRIMARY KEY,
+    name TEXT,
+    price REAL
+);
+
+-- Таблица логов (упрощённая)
+CREATE TABLE event_log (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    operation TEXT,
+    record_id INTEGER,
+    product_name TEXT,
+    event_time TEXT
+);
+
+-- Триггер на удаление товара
+CREATE TRIGGER trg_log_product_delete
+AFTER DELETE ON products
+FOR EACH ROW
+BEGIN
+    INSERT INTO event_log (operation, record_id, product_name, event_time)
+    VALUES ('DELETE', OLD.id, OLD.name, datetime('now'));
+END;
+
+-- Проверка
+INSERT INTO products VALUES (1, 'Телефон', 30000);
+DELETE FROM products WHERE id = 1;
+SELECT * FROM event_log;
+Билет № 5
+Теоретическая часть
+Вопрос: Объясните, что делает данный Python-код. Для чего используется sqlite3.connect(':memory:')? Что делает conn.row_factory = sqlite3.Row?
+
+python
+import sqlite3
+
+def create_connection():
+    conn = sqlite3.connect(':memory:')
+    conn.row_factory = sqlite3.Row
+    conn.executescript("""
+        CREATE TABLE customers ...
+        INSERT INTO customers ...
+    """)
+    return conn
+
+conn = create_connection()
+rows = conn.execute("SELECT * FROM customers").fetchall()
+for row in rows:
+    print(row['last_name'], row['city'])
+conn.close()
+Ответ:
+Код создаёт БД в оперативной памяти (:memory: – база существует только пока открыто соединение), устанавливает row_factory = sqlite3.Row, что позволяет обращаться к колонкам по имени (как к словарю), выполняет скрипт создания и заполнения таблицы, затем выбирает все строки и выводит фамилию и город. row['last_name'] – доступ по имени колонки.
+
+Практическая часть
+Задание: Создайте таблицу products (id, name, category, price, stock). Вставьте 4 товара с разными ценами (два из которых дороже 10 000 рублей). Напишите SQL-запрос, который выводит название и цену всех товаров с ценой выше 10 000 рублей, отсортированных по убыванию цены.
+
+Выполнение (SQL):
+
+sql
+-- Создание таблицы
+CREATE TABLE products (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    name TEXT,
+    category TEXT,
+    price REAL,
+    stock INTEGER
+);
+
+-- Вставка товаров
+INSERT INTO products (name, category, price, stock) VALUES
+    ('Смартфон', 'Электроника', 15000, 10),
+    ('Наушники', 'Электроника', 3500, 25),
+    ('Ноутбук',  'Электроника', 55000, 5),
+    ('Чехол',    'Аксессуары',   800, 100);
+
+-- Запрос
+SELECT name, price
+FROM products
+WHERE price > 10000
+ORDER BY price DESC;
+Билет № 6
+Теоретическая часть
+Вопрос: Объясните, что делает данная Python-функция. Для чего нужен параметр params=()? Что хранится в cur.description?
+
+python
+def run_check(conn, title, query, params=()):
+    cur = conn.execute(query, params)
+    rows = cur.fetchall()
+    cols = [d[0] for d in cur.description]
+    ...
+Ответ:
+Функция выполняет запрос с параметрами (защита от SQL-инъекций). params=() – кортеж параметров для подстановки в запрос (например, ("Москва",)).
+cur.description – это кортеж с описанием столбцов результата; каждый элемент содержит имя столбца под индексом 0. Код извлекает имена колонок в список cols.
+
+Практическая часть
+Задание: Создайте таблицу products (id, name, category, price, stock). Добавьте несколько товаров, в том числе с нулевым остатком. Напишите SQL-запрос, который находит все товары с stock = 0, выводя их id, name и category. Также напишите сводный запрос через UNION ALL, который показывает количество товаров с нулевым остатком и количество товаров с ценой ниже 1 000 рублей.
+
+Выполнение:
+
+sql
+-- Создание и заполнение
+CREATE TABLE products (
+    id INTEGER PRIMARY KEY,
+    name TEXT,
+    category TEXT,
+    price REAL,
+    stock INTEGER
+);
+INSERT INTO products VALUES
+    (1, 'Телефон', 'Электроника', 15000, 0),
+    (2, 'Наушники', 'Электроника', 800,  10),
+    (3, 'Колонка',  'Электроника', 500,  0),
+    (4, 'Чехол',    'Аксессуары',   300,  50);
+
+-- 1) Товары с нулевым остатком
+SELECT id, name, category
+FROM products
+WHERE stock = 0;
+
+-- 2) Сводный запрос через UNION ALL
+SELECT 'Нулевой остаток' AS тип, COUNT(*) AS количество FROM products WHERE stock = 0
+UNION ALL
+SELECT 'Цена < 1000' AS тип, COUNT(*) FROM products WHERE price < 1000;
+Билет № 7
+Теоретическая часть
+Вопрос: Объясните данный SQL-запрос. Что такое «ошибка ссылочной целостности»? Зачем используется LEFT JOIN вместо обычного JOIN?
+
+sql
+SELECT oi.id        AS item_id,
+       oi.order_id,
+       oi.product_id,
+       p.name       AS product_name
+FROM order_items oi
+LEFT JOIN products p ON oi.product_id = p.id
+WHERE p.id IS NULL;
+Ответ:
+Запрос ищет записи в order_items, которые ссылаются на несуществующий товар (product_id отсутствует в таблице products). Это ошибка ссылочной целостности.
+LEFT JOIN нужен, чтобы включить все строки order_items, даже если нет соответствующего товара; для таких строк поля products будут NULL. Затем WHERE p.id IS NULL отсеивает только те, где товара нет. Обычный INNER JOIN не показал бы такие строки.
+
+Практическая часть
+Задание: Создайте таблицы orders и customers. Напишите запрос, который находит заказы, ссылающиеся на несуществующих клиентов (ошибка ссылочной целостности).
+
+Выполнение:
+
+sql
+-- Таблицы
+CREATE TABLE customers (
+    id INTEGER PRIMARY KEY,
+    name TEXT
+);
+CREATE TABLE orders (
+    id INTEGER PRIMARY KEY,
+    customer_id INTEGER,
+    order_date TEXT
+);
+
+-- Вставка: есть клиент 1, но заказ ссылается на клиента 99 (не существует)
+INSERT INTO customers VALUES (1, 'Иван');
+INSERT INTO orders VALUES (10, 1, '2024-11-01');
+INSERT INTO orders VALUES (11, 99, '2024-11-02');  -- ошибочная ссылка
+
+-- Поиск заказов с несуществующим customer_id
+SELECT o.id, o.customer_id
+FROM orders o
+LEFT JOIN customers c ON o.customer_id = c.id
+WHERE c.id IS NULL;
+Билет № 8
+Теоретическая часть
+Вопрос: Объясните данный SQL-запрос. Какой класс ошибок он выявляет? Что делает функция date() в SQLite? Почему проверяется date(order_date) IS NULL?
+
+sql
+SELECT id, customer_id, order_date, status
+FROM orders
+WHERE date(order_date) IS NULL;
+Ответ:
+Запрос выявляет некорректные (невалидные) даты в поле order_date.
+date() в SQLite пытается преобразовать строку в дату. Если строка не является корректной датой (например, '01/11/2024' или 'вчера'), то date() возвращает NULL. Условие date(order_date) IS NULL находит такие строки. Класс ошибок – некорректный формат данных.
+
+Практическая часть
+Задание: Создайте таблицу orders с полем order_date. Вставьте несколько записей: часть с корректными датами ('2024-11-01'), часть — с некорректными ('01/11/2024', 'вчера'). Напишите запрос для выявления некорректных дат.
+
+Выполнение:
+
+sql
+CREATE TABLE orders (
+    id INTEGER PRIMARY KEY,
+    order_date TEXT,
+    status TEXT
+);
+INSERT INTO orders VALUES
+    (1, '2024-11-01', 'доставлен'),
+    (2, '01/11/2024', 'новый'),
+    (3, 'вчера',      'новый'),
+    (4, '2024-12-01', 'обработан');
+
+-- Запрос на некорректные даты
+SELECT id, order_date, status
+FROM orders
+WHERE date(order_date) IS NULL;
+Билет № 9
+Теоретическая часть
+Вопрос: Объясните, что делает данный SQL-код. Что такое EXPLAIN QUERY PLAN? Что означают фразы SCAN orders и SEARCH orders USING INDEX в результате?
+
+sql
+EXPLAIN QUERY PLAN
+SELECT * FROM orders WHERE status = 'доставлен';
+
+CREATE INDEX idx_orders_status ON orders(status);
+
+EXPLAIN QUERY PLAN
+SELECT * FROM orders WHERE status = 'доставлен';
+Ответ:
+EXPLAIN QUERY PLAN показывает, как SQLite планирует выполнить запрос.
+SCAN orders – полное сканирование всей таблицы (без индекса, медленно).
+SEARCH orders USING INDEX – использование индекса для быстрого поиска (быстро).
+Код демонстрирует улучшение плана после создания индекса на status.
+
+Практическая часть
+Задание: Создайте таблицу customers с полем city. Выполните EXPLAIN QUERY PLAN для запроса WHERE city = 'Москва' до и после создания индекса на поле city. Сравните планы запросов.
+
+Выполнение:
+
+sql
+-- Таблица
+CREATE TABLE customers (
+    id INTEGER PRIMARY KEY,
+    name TEXT,
+    city TEXT
+);
+INSERT INTO customers (name, city) VALUES
+    ('Иван', 'Москва'), ('Мария', 'Казань'), ('Пётр', 'Москва');
+
+-- До индекса
+EXPLAIN QUERY PLAN
+SELECT * FROM customers WHERE city = 'Москва';
+-- Ожидаем: SCAN customers
+
+-- Создаём индекс
+CREATE INDEX idx_city ON customers(city);
+
+-- После индекса
+EXPLAIN QUERY PLAN
+SELECT * FROM customers WHERE city = 'Москва';
+-- Ожидаем: SEARCH customers USING INDEX idx_city
+Билет № 10
+Теоретическая часть
+Вопрос: Объясните данный SQL-код. Что такое составной индекс? Почему составной индекс (customer_id, order_date) работает при фильтрации только по customer_id, но не работает при фильтрации только по order_date?
+
+sql
+CREATE INDEX idx_orders_customer_date ON orders(customer_id, order_date);
+
+EXPLAIN QUERY PLAN
+SELECT * FROM orders WHERE customer_id = 1 AND order_date > '2024-11-01';
+
+EXPLAIN QUERY PLAN
+SELECT * FROM orders WHERE order_date > '2024-11-01';
+Ответ:
+Составной индекс – индекс по нескольким колонкам. Он эффективен для поиска по левому префиксу (начальным колонкам). В данном индексе сначала идёт customer_id, затем order_date. Поэтому фильтр по customer_id использует индекс (первая колонка), а фильтр только по order_date – нет, потому что order_date не является левым префиксом (индекс не может быть использован).
+
+Практическая часть
+Задание: Создайте таблицу order_items. Создайте составной индекс на поля (order_id, product_id). Выполните EXPLAIN QUERY PLAN для трёх запросов: фильтрация только по order_id, только по product_id, по обоим полям одновременно.
+
+Выполнение:
+
+sql
+-- Таблица
+CREATE TABLE order_items (
+    id INTEGER PRIMARY KEY,
+    order_id INTEGER,
+    product_id INTEGER,
+    quantity INTEGER
+);
+-- Несколько записей для наглядности
+INSERT INTO order_items (order_id, product_id, quantity) VALUES
+    (10, 100, 1), (10, 101, 2), (11, 100, 1);
+
+-- Составной индекс
+CREATE INDEX idx_order_product ON order_items(order_id, product_id);
+
+-- 1) Только order_id
+EXPLAIN QUERY PLAN
+SELECT * FROM order_items WHERE order_id = 10;
+-- Будет SEARCH USING INDEX (использует левую часть)
+
+-- 2) Только product_id
+EXPLAIN QUERY PLAN
+SELECT * FROM order_items WHERE product_id = 100;
+-- Будет SCAN (индекс не используется)
+
+-- 3) Оба поля
+EXPLAIN QUERY PLAN
+SELECT * FROM order_items WHERE order_id = 10 AND product_id = 100;
+-- Будет SEARCH USING INDEX (использует обе колонки)
+Билет № 11
+Теоретическая часть
+Вопрос: Объясните данный SQL-код. Что такое частичный индекс? В чём его преимущество перед обычным индексом в данном случае?
+
+sql
+CREATE INDEX idx_orders_active
+ON orders(customer_id, order_date)
+WHERE status != 'отменён';
+
+EXPLAIN QUERY PLAN
+SELECT * FROM orders
+WHERE status != 'отменён' AND customer_id = 3;
+Ответ:
+Частичный (фильтрованный) индекс содержит только строки, удовлетворяющие условию (WHERE status != 'отменён'). Он занимает меньше места и быстрее для запросов, которые также фильтруют по этому условию. Преимущество: ускорение запросов к активным заказам без индексации отменённых.
+
+Практическая часть
+Задание: Создайте таблицу products. Создайте частичный индекс на поле name только для товаров в наличии (stock > 0). Выполните EXPLAIN QUERY PLAN для запроса поиска товара по названию среди товаров с ненулевым остатком.
+
+Выполнение:
+
+sql
+CREATE TABLE products (
+    id INTEGER PRIMARY KEY,
+    name TEXT,
+    stock INTEGER
+);
+INSERT INTO products VALUES
+    (1, 'Телефон', 10),
+    (2, 'Чехол',   0),
+    (3, 'Наушники',5);
+
+-- Частичный индекс только для товаров в наличии
+CREATE INDEX idx_products_name_in_stock ON products(name)
+WHERE stock > 0;
+
+-- Запрос, который может использовать этот индекс
+EXPLAIN QUERY PLAN
+SELECT * FROM products
+WHERE stock > 0 AND name = 'Телефон';
+-- Должен использовать частичный индекс
+Билет № 12
+Теоретическая часть
+Вопрос: Объясните данный SQL-код. Что означает SCAN COVERING INDEX в плане запроса? Чем покрывающий индекс отличается от обычного?
+
+sql
+CREATE INDEX idx_products_cat_price ON products(category, price);
+
+EXPLAIN QUERY PLAN
+SELECT category, price
+FROM products
+WHERE category = 'Электроника'
+ORDER BY price;
+Ответ:
+Покрывающий индекс содержит все столбцы, которые нужны для запроса (category, price), поэтому SQLite может получить данные прямо из индекса, не обращаясь к таблице. Это быстрее.
+SCAN COVERING INDEX означает сканирование индекса, который полностью покрывает запрос. Обычный индекс требует дополнительного чтения таблицы для получения остальных колонок.
+
+Практическая часть
+Задание: Создайте таблицу orders. Создайте индекс на (status, order_date). Напишите запрос SELECT status, order_date FROM orders WHERE status = 'новый' ORDER BY order_date и выполните EXPLAIN QUERY PLAN. Убедитесь, что используется покрывающий индекс.
+
+Выполнение:
+
+sql
+CREATE TABLE orders (
+    id INTEGER PRIMARY KEY,
+    status TEXT,
+    order_date TEXT,
+    customer_id INTEGER
+);
+INSERT INTO orders (status, order_date, customer_id) VALUES
+    ('новый', '2024-11-01', 1),
+    ('доставлен', '2024-11-02', 2),
+    ('новый', '2024-11-03', 1);
+
+CREATE INDEX idx_status_date ON orders(status, order_date);
+
+EXPLAIN QUERY PLAN
+SELECT status, order_date
+FROM orders
+WHERE status = 'новый'
+ORDER BY order_date;
+-- Должен быть SCAN COVERING INDEX idx_status_date
+Билет № 13
+Теоретическая часть
+Вопрос: Объясните данный SQL-код. Что делает PRAGMA index_list? Что произойдёт с запросами, которые использовали удалённый индекс? Когда стоит удалять индексы?
+
+sql
+PRAGMA index_list('orders');
+
+DROP INDEX IF EXISTS idx_orders_status;
+
+PRAGMA index_list('orders');
+Ответ:
+PRAGMA index_list('таблица') выводит список индексов для указанной таблицы.
+Если удалить индекс, запросы, которые его использовали, перестанут его использовать и будут выполнять полное сканирование таблицы (могут замедлиться).
+Удалять индексы стоит, если они больше не нужны (например, изменилась логика приложения) или если они замедляют вставку/обновление, а пользы от них мало.
+
+Практическая часть
+Задание: Создайте таблицу products и добавьте на неё три индекса: на category, на price, составной на (category, price). С помощью PRAGMA index_list выведите список всех индексов. Затем удалите индекс на price и снова выведите список.
+
+Выполнение:
+
+sql
+CREATE TABLE products (
+    id INTEGER PRIMARY KEY,
+    name TEXT,
+    category TEXT,
+    price REAL
+);
+
+CREATE INDEX idx_category ON products(category);
+CREATE INDEX idx_price ON products(price);
+CREATE INDEX idx_cat_price ON products(category, price);
+
+-- Список индексов
+PRAGMA index_list('products');
+
+-- Удаляем индекс на price
+DROP INDEX IF EXISTS idx_price;
+
+-- Снова список
+PRAGMA index_list('products');
+Билет № 14
+Теоретическая часть
+Вопрос: Объясните данный Python-код. Зачем используется timeit.timeit? Почему запрос выполняется 500 раз, а не один? Что возвращает функция measure_query?
+
+python
+def measure_query(conn, sql, params=(), repeats=500):
+    def run():
+        cur = conn.execute(sql, params)
+        cur.fetchall()
+    elapsed = timeit.timeit(run, number=repeats)
+    return (elapsed / repeats) * 1000
+Ответ:
+timeit.timeit измеряет время выполнения кода. Запрос выполняется 500 раз, чтобы получить среднее время и уменьшить погрешность (особенно для быстрых запросов). Функция возвращает среднее время выполнения одного запроса в миллисекундах.
+
+Практическая часть
+Задание: Создайте таблицу products и заполните её 20 записями с разными категориями. Выполните EXPLAIN QUERY PLAN для запроса WHERE category = 'Электроника' до создания индекса. Затем создайте индекс на category и повторите EXPLAIN QUERY PLAN. Зафиксируйте разницу между фразами SCAN и SEARCH USING INDEX.
+
+Выполнение (SQL):
+
+sql
+-- Таблица
+CREATE TABLE products (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    name TEXT,
+    category TEXT,
+    price REAL
+);
+-- Вставка 20 записей (пример)
+INSERT INTO products (name, category, price) VALUES
+    ('Товар1', 'Электроника', 100), ('Товар2', 'Мебель', 200),
+    ('Товар3', 'Электроника', 150), ('Товар4', 'Одежда', 50),
+    -- ... (повторить до 20)
+    ('Товар20', 'Электроника', 300);
+
+-- До индекса
+EXPLAIN QUERY PLAN
+SELECT * FROM products WHERE category = 'Электроника';
+-- Результат: SCAN products
+
+-- Создаём индекс
+CREATE INDEX idx_cat ON products(category);
+
+-- После индекса
+EXPLAIN QUERY PLAN
+SELECT * FROM products WHERE category = 'Электроника';
+-- Результат: SEARCH products USING INDEX idx_cat
+Билет № 15
+Теоретическая часть
+Вопрос: Объясните данный SQL-код. Что такое уникальный индекс? Чем он отличается от обычного индекса? Что произойдёт при попытке вставить запись с дублирующимся значением?
+
+sql
+CREATE UNIQUE INDEX idx_customers_email ON customers(email);
+INSERT INTO customers (...) VALUES ('test@mail.ru', ...);
+INSERT INTO customers (...) VALUES ('test@mail.ru', ...); -- дубль
+Ответ:
+Уникальный индекс обеспечивает отсутствие дублирующихся значений в индексируемом столбце (или комбинации). От обычного отличается тем, что запрещает вставку строк с повторяющимся ключом. При попытке вставить дубль SQLite выдаст ошибку UNIQUE constraint failed.
+
+Практическая часть
+Задание: Создайте таблицу products с полем article (артикул). Создайте уникальный индекс на article. Вставьте 2 товара с разными артикулами и убедитесь, что попытка вставить товар с уже существующим артикулом вызывает ошибку.
+
+Выполнение:
+
+sql
+CREATE TABLE products (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    name TEXT,
+    article TEXT
+);
+
+CREATE UNIQUE INDEX idx_article ON products(article);
+
+-- Успешные вставки
+INSERT INTO products (name, article) VALUES ('Телефон', 'ART001');
+INSERT INTO products (name, article) VALUES ('Ноутбук', 'ART002');
+
+-- Попытка вставить дубликат артикула (вызовет ошибку)
+INSERT INTO products (name, article) VALUES ('Планшет', 'ART001');
+-- Ожидаем: UNIQUE constraint failed: products.article
+Билет № 16
+Теоретическая часть
+Вопрос: Объясните данный Python-код. Что делает функция show_query_plan? Что хранится в row[3]? Почему планы запросов до и после создания индексов различаются?
+
+python
+def show_query_plan(conn, description, query):
+    print(f'\n  Запрос: {description}')
+    rows = conn.execute(f'EXPLAIN QUERY PLAN {query}').fetchall()
+    for row in rows:
+        print(f'    → {row[3]}')
+Ответ:
+Функция выполняет EXPLAIN QUERY PLAN и выводит четвёртый столбец (row[3]), который содержит текстовое описание шага плана (например, SCAN TABLE orders или SEARCH ... USING INDEX). Планы различаются, потому что после создания индекса SQLite может использовать его для ускорения запроса.
+
+Практическая часть
+Задание: Создайте таблицу products (id, name, category, price, stock) и добавьте 5–6 записей с разными категориями. Выполните EXPLAIN QUERY PLAN для запроса WHERE category = 'Электроника' до создания индекса. Создайте индекс на поле category и повторите EXPLAIN QUERY PLAN. Выпишите строку detail из каждого плана и объясните, что изменилось.
+
+Выполнение (SQL):
+
+sql
+CREATE TABLE products (
+    id INTEGER PRIMARY KEY,
+    name TEXT,
+    category TEXT,
+    price REAL,
+    stock INTEGER
+);
+INSERT INTO products (name, category, price, stock) VALUES
+    ('Телефон', 'Электроника', 30000, 10),
+    ('Кресло',   'Мебель',     12000,  3),
+    ('Ноутбук',  'Электроника', 50000, 5),
+    ('Стол',     'Мебель',      8000,  2),
+    ('Чехол',    'Аксессуары',   500, 20);
+
+-- До индекса:
+EXPLAIN QUERY PLAN
+SELECT * FROM products WHERE category = 'Электроника';
+-- detail: SCAN products
+
+-- Создаём индекс
+CREATE INDEX idx_category ON products(category);
+
+-- После индекса:
+EXPLAIN QUERY PLAN
+SELECT * FROM products WHERE category = 'Электроника';
+-- detail: SEARCH products USING INDEX idx_category
+-- Изменилось: вместо полного сканирования используется индекс.
+Билет № 17
+Теоретическая часть
+Вопрос: Объясните структуру данного SQL-дампа. Зачем в начале стоят команды DROP TABLE IF EXISTS? Почему таблицы удаляются в определённом порядке (сначала order_items, потом orders)? Что означает «SQL-дамп» как инструмент резервного копирования?
+
+Ответ:
+DROP TABLE IF EXISTS удаляет таблицу, если она существует, чтобы избежать конфликтов при восстановлении. Порядок удаления важен из-за внешних ключей: сначала удаляются зависимые таблицы (order_items ссылается на orders), потом родительские. SQL-дамп – это текстовый файл с командами SQL, который позволяет полностью восстановить структуру и данные БД.
+
+Практическая часть
+Задание: Напишите SQL-дамп только для таблицы products. Дамп должен содержать: заголовок с датой, команду DROP TABLE IF EXISTS, команду CREATE TABLE и INSERT минимум для 3 товаров.
+
+Выполнение:
+
+sql
+-- SQL-дамп таблицы products
+-- Создан: 2024-12-01
+
+DROP TABLE IF EXISTS products;
+
+CREATE TABLE products (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    name TEXT NOT NULL,
+    category TEXT,
+    price REAL,
+    stock INTEGER
+);
+
+INSERT INTO products (name, category, price, stock) VALUES
+    ('Смартфон', 'Электроника', 25000, 15),
+    ('Наушники', 'Электроника',  1200, 30),
+    ('Чехол',    'Аксессуары',    400, 100);
+Билет № 18
+Теоретическая часть
+Вопрос: Объясните данный SQL-код. Что такое транзакция? Что означают команды BEGIN, COMMIT, ROLLBACK? Что произойдёт с данными, если выполнить ROLLBACK вместо COMMIT?
+
+sql
+BEGIN;
+UPDATE products SET price = 39990.00 WHERE id = 1;
+UPDATE products SET stock = stock - 1 WHERE id = 1;
+COMMIT;
+Ответ:
+Транзакция – группа операций, которая выполняется как единое целое (атомарно).
+BEGIN – начало транзакции.
+COMMIT – фиксирует все изменения.
+ROLLBACK – отменяет все изменения, сделанные в транзакции.
+Если вместо COMMIT выполнить ROLLBACK, то оба обновления будут отменены, данные останутся как до BEGIN.
+
+Практическая часть
+Задание: Создайте таблицы orders и order_items. Напишите транзакцию, которая атомарно добавляет новый заказ и одну позицию к нему. После COMMIT проверьте, что обе записи появились в таблицах.
+
+Выполнение:
+
+sql
+CREATE TABLE orders (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    customer_id INTEGER,
+    order_date TEXT
+);
+CREATE TABLE order_items (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    order_id INTEGER,
+    product_id INTEGER,
+    quantity INTEGER
+);
+
+BEGIN;
+INSERT INTO orders (customer_id, order_date) VALUES (100, '2024-12-01');
+-- Получаем последний вставленный id заказа (предположим, что это 1)
+INSERT INTO order_items (order_id, product_id, quantity) VALUES (1, 500, 2);
+COMMIT;
+
+-- Проверка
+SELECT * FROM orders;
+SELECT * FROM order_items;
+Билет № 19
+Теоретическая часть
+Вопрос: Объясните данный SQL-код. Зачем нужен ROLLBACK при восстановлении из резервной копии? Что означает «атомарность транзакции»? В каком состоянии окажется БД после ROLLBACK?
+
+sql
+BEGIN;
+INSERT INTO customers ... ('Новый', 'Клиент', ...);
+INSERT INTO customers ... ('Второй', 'Клиент', ...);
+-- Обнаружена ошибка в дампе — откат всех изменений:
+ROLLBACK;
+Ответ:
+ROLLBACK нужен, чтобы отменить все изменения, если в процессе восстановления обнаружена ошибка (например, дубликат или некорректные данные). Атомарность означает, что транзакция либо выполняется полностью, либо не выполняется вовсе. После ROLLBACK БД возвращается в состояние, которое было до начала транзакции (ни одна из вставок не применяется).
+
+Практическая часть
+Задание: Создайте таблицу products. Напишите транзакцию, которая: (1) вставляет два товара, (2) делает ROLLBACK. Проверьте командой SELECT COUNT(*), что таблица осталась пустой.
+
+Выполнение:
+
+sql
+CREATE TABLE products (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    name TEXT
+);
+
+BEGIN;
+INSERT INTO products (name) VALUES ('Товар A');
+INSERT INTO products (name) VALUES ('Товар B');
+ROLLBACK;
+
+SELECT COUNT(*) FROM products;  -- Вернёт 0
+Билет № 20
+Теоретическая часть
+Вопрос: Объясните данный SQL-код. Что такое SAVEPOINT? В чём отличие ROLLBACK TO savepoint_name от полного ROLLBACK? В каком сценарии сопровождения ИС это полезно?
+
+sql
+BEGIN;
+SAVEPOINT before_update;
+UPDATE products SET price = -100 WHERE id = 1;
+ROLLBACK TO before_update;
+UPDATE products SET price = 32000 WHERE id = 1;
+COMMIT;
+Ответ:
+SAVEPOINT – точка сохранения внутри транзакции, к которой можно частично откатиться.
+ROLLBACK TO savepoint отменяет изменения после точки, но не всю транзакцию, а полный ROLLBACK отменяет всё. Полезно при сложных сценариях, когда нужно пробовать несколько операций и откатывать только ошибочную часть, сохраняя остальные.
+
+Практическая часть
+Задание: Создайте таблицу customers. Напишите транзакцию с SAVEPOINT, которая: (1) добавляет клиента, (2) создаёт SAVEPOINT, (3) пытается добавить второго клиента с некорректными данными (пустое имя), (4) откатывается к SAVEPOINT, (5) добавляет второго клиента с правильными данными и делает COMMIT.
+
+Выполнение:
+
+sql
+CREATE TABLE customers (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    name TEXT NOT NULL
+);
+
+BEGIN;
+INSERT INTO customers (name) VALUES ('Иван');
+
+SAVEPOINT sp1;
+
+-- Некорректная вставка (вызовет ошибку NOT NULL, но мы откатим)
+INSERT INTO customers (name) VALUES (NULL);  -- Ошибка, но мы её обработаем откатом
+
+ROLLBACK TO sp1;
+
+-- Теперь корректная вставка
+INSERT INTO customers (name) VALUES ('Мария');
+
+COMMIT;
+
+SELECT * FROM customers;  -- Иван и Мария
+Билет № 21
+Теоретическая часть
+Вопрос: Объясните данный SQL-код. Что такое «миграция схемы»? Зачем нужна таблица schema_migrations? Что означает IF NOT EXISTS в запросе проверки?
+
+sql
+CREATE TABLE IF NOT EXISTS schema_migrations (
+    version TEXT NOT NULL PRIMARY KEY,
+    description TEXT NOT NULL,
+    applied_at TEXT NOT NULL
+);
+
+SELECT COUNT(*) AS cnt FROM schema_migrations WHERE version = '0002';
+Ответ:
+Миграция схемы – контролируемое изменение структуры БД (добавление колонки, создание индекса и т.д.). Таблица schema_migrations хранит историю применённых миграций, чтобы не выполнять их повторно. IF NOT EXISTS в CREATE TABLE создаёт таблицу, только если её ещё нет; в запросе проверки – просто поиск записи о версии.
+
+Практическая часть
+Задание: Создайте таблицу schema_migrations. Зарегистрируйте в ней три миграции: '0001' – «Создание начальной схемы», '0002' – «Добавление таблицы reviews», '0003' – «Индексы на orders». Выведите все записи из таблицы.
+
+Выполнение:
+
+sql
+CREATE TABLE IF NOT EXISTS schema_migrations (
+    version TEXT PRIMARY KEY,
+    description TEXT NOT NULL,
+    applied_at TEXT NOT NULL
+);
+
+INSERT INTO schema_migrations (version, description, applied_at) VALUES
+    ('0001', 'Создание начальной схемы', datetime('now')),
+    ('0002', 'Добавление таблицы reviews', datetime('now')),
+    ('0003', 'Индексы на orders', datetime('now'));
+
+SELECT * FROM schema_migrations;
+Билет № 22
+Теоретическая часть
+Вопрос: Объясните данный SQL-код. Что делает команда ALTER TABLE ... ADD COLUMN? Почему после добавления столбца выполняется UPDATE? Какие операции с таблицами не поддерживаются в SQLite напрямую?
+
+sql
+BEGIN;
+ALTER TABLE customers ADD COLUMN phone TEXT;
+UPDATE customers SET phone = 'не указан' WHERE phone IS NULL;
+COMMIT;
+Ответ:
+ALTER TABLE ADD COLUMN добавляет новый столбец. UPDATE нужен, чтобы заполнить его значением по умолчанию для существующих строк (иначе будет NULL).
+В SQLite напрямую не поддерживаются: удаление столбца, изменение типа столбца, переименование столбца, добавление ограничений (кроме NOT NULL с дефолтом) и некоторые другие операции – их выполняют через пересоздание таблицы.
+
+Практическая часть
+Задание: Создайте таблицу products и добавьте в неё 2–3 записи. Напишите миграцию, которая добавляет в таблицу поле discount REAL DEFAULT 0 и обновляет все существующие записи, устанавливая скидку 5 (discount = 5). Зарегистрируйте миграцию в таблице schema_migrations.
+
+Выполнение:
+
+sql
+-- Исходная таблица
+CREATE TABLE products (
+    id INTEGER PRIMARY KEY,
+    name TEXT,
+    price REAL
+);
+INSERT INTO products (name, price) VALUES ('Телефон', 30000), ('Ноутбук', 50000);
+
+-- Таблица миграций
+CREATE TABLE schema_migrations (version TEXT PRIMARY KEY, description TEXT, applied_at TEXT);
+
+-- Миграция
+BEGIN;
+ALTER TABLE products ADD COLUMN discount REAL DEFAULT 0;
+UPDATE products SET discount = 5 WHERE discount = 0;
+INSERT INTO schema_migrations (version, description, applied_at)
+VALUES ('0001', 'Добавление поля discount', datetime('now'));
+COMMIT;
+
+SELECT * FROM products;
+Билет № 23
+Теоретическая часть
+Вопрос: Объясните данный Python-код. Что делает функция generate_dump? Что хранится в таблице sqlite_master? Зачем в дампе используются команды DROP TABLE IF EXISTS?
+
+python
+def generate_dump(conn):
+    lines = []
+    tables = conn.execute("SELECT name FROM sqlite_master WHERE type='table' AND name NOT LIKE 'sqlite_%'").fetchall()
+    for (table_name,) in tables:
+        ddl = conn.execute("SELECT sql FROM sqlite_master WHERE type='table' AND name=?", (table_name,)).fetchone()[0]
+        lines.append(f'\nDROP TABLE IF EXISTS {table_name};')
+        lines.append(ddl + ';')
+    return '\n'.join(lines)
+Ответ:
+generate_dump создаёт SQL-дамп всех пользовательских таблиц. sqlite_master – системная таблица, хранящая схему БД (команды CREATE). DROP TABLE IF EXISTS нужен, чтобы при восстановлении дампа старые таблицы были удалены без ошибок.
+
+Практическая часть
+Задание: Используя sqlite_master, напишите SQL-запрос, который получает DDL (исходный CREATE TABLE) всех таблиц базы данных. Затем вручную составьте полный SQL-дамп для таблицы order_items (включая DROP TABLE IF EXISTS, CREATE TABLE и не менее 3 строк INSERT). Выполните дамп в SQL Online IDE и проверьте через SELECT COUNT(*), что данные восстановлены.
+
+Выполнение:
+
+sql
+-- 1) Получение DDL всех таблиц через sqlite_master
+SELECT name, sql FROM sqlite_master WHERE type='table';
+
+-- 2) Ручной дамп для таблицы order_items
+DROP TABLE IF EXISTS order_items;
+
+CREATE TABLE order_items (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    order_id INTEGER,
+    product_id INTEGER,
+    quantity INTEGER
+);
+
+INSERT INTO order_items (order_id, product_id, quantity) VALUES
+    (1, 100, 2),
+    (1, 101, 1),
+    (2, 100, 3);
+
+-- Проверка восстановления
+SELECT COUNT(*) FROM order_items;  -- Должно быть 3
+Билет № 24
+Теоретическая часть
+Вопрос: Объясните данный Python-код. Что такое unittest.TestCase? Почему методы тестов должны начинаться с префикса test_? Что делают методы setUp и tearDown?
+
+python
+class TestEmailValidation(unittest.TestCase):
+    def setUp(self):
+        self.valid_emails = [...]
+    def tearDown(self):
+        pass
+    def test_valid_emails_pass(self):
+        ...
+Ответ:
+unittest.TestCase – базовый класс для написания тестов. Префикс test_ обязателен, чтобы фреймворк автоматически находил и запускал методы-тесты.
+setUp выполняется перед каждым тестом (подготовка данных/ресурсов).
+tearDown выполняется после каждого теста (очистка).
+
+Практическая часть
+Задание: Создайте таблицу customers с ограничением UNIQUE на поле email и ограничением NOT NULL на поля last_name и first_name. Вставьте двух клиентов с разными email. Проверьте три сценария, аналогичных модульным тестам:
+
+Попытка вставить клиента с уже существующим email (ожидается ошибка UNIQUE).
+
+Попытка вставить клиента с last_name = NULL (ожидается ошибка NOT NULL).
+
+Успешная вставка клиента с корректными данными и проверка через SELECT.
+
+Выполнение:
+
+sql
+CREATE TABLE customers (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    last_name TEXT NOT NULL,
+    first_name TEXT NOT NULL,
+    email TEXT UNIQUE
+);
+
+-- Успешная вставка двух клиентов
+INSERT INTO customers (last_name, first_name, email) VALUES ('Иванов', 'Алексей', 'i@mail.ru');
+INSERT INTO customers (last_name, first_name, email) VALUES ('Петрова', 'Мария', 'p@mail.ru');
+
+-- Сценарий 1: дубль email (ошибка)
+INSERT INTO customers (last_name, first_name, email) VALUES ('Сидоров', 'Иван', 'i@mail.ru');
+
+-- Сценарий 2: last_name = NULL (ошибка)
+INSERT INTO customers (last_name, first_name, email) VALUES (NULL, 'Ольга', 'o@mail.ru');
+
+-- Сценарий 3: корректная вставка
+INSERT INTO customers (last_name, first_name, email) VALUES ('Сидорова', 'Ольга', 's@mail.ru');
+SELECT * FROM customers;
+Билет № 25
+Теоретическая часть
+Вопрос: Объясните данный Python-код. Почему для тестирования используется sqlite3.connect(':memory:'), а не реальная база данных? Что произойдёт с данными после вызова tearDown?
+
+python
+class TestProductDatabase(unittest.TestCase):
+    def setUp(self):
+        self.conn = sqlite3.connect(':memory:')
+        ...
+    def tearDown(self):
+        self.conn.close()
+Ответ:
+':memory:' создаёт временную БД в оперативной памяти, которая удаляется после закрытия соединения. Это изолирует тесты друг от друга и от реальных данных. После tearDown соединение закрывается, все данные теряются – тесты не оставляют мусора.
+
+Практическая часть
+Задание: Создайте таблицу customers (id, last_name, first_name, email UNIQUE, city). Вставьте трёх клиентов. Выполните три проверочных SQL-запроса, аналогичных модульным тестам:
+
+Подсчёт количества записей – убедитесь, что их ровно 3.
+
+Поиск клиента по email – убедитесь, что last_name совпадает с ожидаемым.
+
+Поиск по несуществующему id = 9999 – убедитесь, что запрос возвращает 0 строк.
+
+Выполнение:
+
+sql
+CREATE TABLE customers (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    last_name TEXT,
+    first_name TEXT,
+    email TEXT UNIQUE,
+    city TEXT
+);
+
+INSERT INTO customers (last_name, first_name, email, city) VALUES
+    ('Иванов', 'Алексей', 'i@mail.ru', 'Москва'),
+    ('Петрова', 'Мария',  'p@mail.ru', 'Казань'),
+    ('Сидоров', 'Иван',   's@mail.ru', 'Новосибирск');
+
+-- Тест 1: количество
+SELECT COUNT(*) AS cnt FROM customers;  -- Ожидается 3
+
+-- Тест 2: поиск по email
+SELECT last_name FROM customers WHERE email = 'p@mail.ru';  -- Ожидается 'Петрова'
+
+-- Тест 3: несуществующий id
+SELECT COUNT(*) FROM customers WHERE id = 9999;  -- Ожидается 0
+Билет № 26
+Теоретическая часть
+Вопрос: Объясните данный Python-код. Что делает assertRaises? Чем Failure (F) отличается от Error (E) в результатах запуска тестов? Что означают символы ., F, E при выводе результатов?
+
+python
+with self.assertRaises(ValueError):
+    parse_price(-100)
+Ответ:
+assertRaises проверяет, что в блоке кода выбрасывается указанное исключение.
+Failure (F) – тест провалился из-за неверного утверждения (например, ожидали 5, получили 3).
+Error (E) – в тесте возникло непредвиденное исключение (например, ошибка в самом коде).
+При выводе: . – успешный тест, F – failure, E – error.
+
+Практическая часть
+Задание: Создайте таблицу products с ограничением CHECK(price > 0) и CHECK(stock >= 0). Продемонстрируйте три сценария – аналога assertRaises – через SQL:
+
+Вставка товара с корректными данными (успех).
+
+Вставка товара с price = 0 (ошибка CHECK).
+
+Вставка товара с stock = -1 (ошибка CHECK).
+
+Выполнение:
+
+sql
+CREATE TABLE products (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    name TEXT,
+    price REAL CHECK(price > 0),
+    stock INTEGER CHECK(stock >= 0)
+);
+
+-- Сценарий 1: корректная вставка
+INSERT INTO products (name, price, stock) VALUES ('Телефон', 30000, 10);
+
+-- Сценарий 2: price = 0 (ошибка)
+INSERT INTO products (name, price, stock) VALUES ('Ноутбук', 0, 5);
+
+-- Сценарий 3: stock = -1 (ошибка)
+INSERT INTO products (name, price, stock) VALUES ('Планшет', 15000, -1);
+
+SELECT * FROM products;  -- Только первый товар
+Билет № 27
+Теоретическая часть
+Вопрос: Объясните данный Python-код. Что такое интеграционный тест? Чем он отличается от модульного? Какие assert-методы используются и что каждый из них проверяет?
+
+python
+def test_returns_correct_id(self):
+    cid = add_customer(...)
+    self.assertEqual(cid, 1)
+def test_customer_stored(self):
+    add_customer(...)
+    row = self.conn.execute(...).fetchone()
+    self.assertIsNotNone(row)
+    self.assertEqual(row[0], 'i@mail.ru')
+Ответ:
+Интеграционный тест проверяет взаимодействие компонентов (в данном случае – функцию добавления клиента и базу данных). Модульный тест тестирует изолированную функцию.
+assertEqual(a, b) – проверяет равенство.
+assertIsNotNone(x) – проверяет, что x не None.
+assertGreater(a, b) – a > b.
+assertAlmostEqual(a, b) – приближённое равенство (для чисел с плавающей точкой).
+
+Практическая часть
+Задание: Создайте таблицы customers, products, orders и order_items. Выполните полный интеграционный сценарий SQL-командами:
+
+Вставьте клиента и товар, запомните их id через SELECT last_insert_rowid().
+
+Создайте заказ для этого клиента.
+
+Добавьте позицию в заказ.
+
+Убедитесь, что итоговая сумма заказа (SUM(quantity * price_at_order)) равна ожидаемому значению.
+
+Проверьте, что при попытке вставить заказ для несуществующего клиента (customer_id = 9999) возникает ошибка.
+
+Выполнение:
+
+sql
+-- Создание таблиц
+CREATE TABLE customers (id INTEGER PRIMARY KEY, name TEXT);
+CREATE TABLE products (id INTEGER PRIMARY KEY, name TEXT, price REAL);
+CREATE TABLE orders (id INTEGER PRIMARY KEY, customer_id INTEGER);
+CREATE TABLE order_items (id INTEGER PRIMARY KEY, order_id INTEGER, product_id INTEGER, quantity INTEGER, price_at_order REAL);
+
+-- Шаг 1
+INSERT INTO customers (name) VALUES ('Иван');
+SELECT last_insert_rowid() AS customer_id;  -- предположим 1
+INSERT INTO products (name, price) VALUES ('Телефон', 30000);
+SELECT last_insert_rowid() AS product_id;   -- предположим 1
+
+-- Шаг 2
+INSERT INTO orders (customer_id) VALUES (1);
+SELECT last_insert_rowid() AS order_id;     -- предположим 1
+
+-- Шаг 3
+INSERT INTO order_items (order_id, product_id, quantity, price_at_order)
+VALUES (1, 1, 2, 30000);
+
+-- Шаг 4
+SELECT SUM(quantity * price_at_order) AS total FROM order_items WHERE order_id = 1;
+-- Ожидается 60000
+
+-- Шаг 5: попытка вставить заказ с несуществующим customer_id
+PRAGMA foreign_keys = ON;  -- включить проверку внешних ключей
+INSERT INTO orders (customer_id) VALUES (9999);  -- Ошибка FOREIGN KEY constraint failed
+Билет № 28
+Теоретическая часть
+Вопрос: Объясните данный Python-код. Что такое паттерн AAA (Arrange — Act — Assert)? Определите три блока AAA в каждом тесте. Что делают методы assertEqual, assertGreater, assertAlmostEqual?
+
+python
+def test_single_item(self):
+    # Arrange
+    items = [{'price': 500.0, 'quantity': 3}]
+    # Act
+    total = calculate_order_total(items)
+    # Assert
+    self.assertEqual(total, 1500.0)
+Ответ:
+AAA – паттерн для структурирования тестов:
+
+Arrange – подготовка данных (инициализация).
+
+Act – выполнение тестируемого действия.
+
+Assert – проверка результата.
+assertEqual – равенство.
+assertGreater – больше.
+assertAlmostEqual – равенство с погрешностью (для float).
+
+Практическая часть
+Задание: Создайте таблицы orders и order_items и вставьте тестовые данные. Напишите четыре SQL-запроса по аналогии с паттерном AAA, каждый из которых проверяет отдельный сценарий:
+
+Сумма заказа с одной позицией (2 единицы товара по 1 500 руб.) равна 3 000 руб.
+
+Сумма заказа с двумя разными позициями равна ожидаемому значению.
+
+Запрос суммы для заказа без позиций возвращает 0 (COALESCE).
+
+Скидка 10% применяется корректно: ROUND(сумма * 0.9, 2).
+
+Выполнение:
+
+sql
+CREATE TABLE orders (id INTEGER PRIMARY KEY);
+CREATE TABLE order_items (
+    id INTEGER PRIMARY KEY,
+    order_id INTEGER,
+    quantity INTEGER,
+    price_at_order REAL
+);
+
+-- Подготовка данных (Arrange)
+INSERT INTO orders VALUES (1), (2), (3);
+INSERT INTO order_items (order_id, quantity, price_at_order) VALUES
+    (1, 2, 1500),          -- сценарий 1
+    (2, 1, 1000), (2, 2, 500), -- сценарий 2
+    (3, 0, 0);                -- сценарий 3 (пустой, но для простоты добавим позицию с 0)
+
+-- Сценарий 1
+SELECT ROUND(SUM(quantity * price_at_order), 2) AS total FROM order_items WHERE order_id = 1;
+-- Ожидается 3000
+
+-- Сценарий 2
+SELECT ROUND(SUM(quantity * price_at_order), 2) FROM order_items WHERE order_id = 2;
+-- Ожидается 2000 (1000*1 + 500*2)
+
+-- Сценарий 3 (заказ без позиций – создадим заказ 4)
+INSERT INTO orders VALUES (4);
+SELECT COALESCE(SUM(quantity * price_at_order), 0) FROM order_items WHERE order_id = 4;
+-- Ожидается 0
+
+-- Сценарий 4 (скидка 10% на сумму заказа 1)
+SELECT ROUND(SUM(quantity * price_at_order) * 0.9, 2) FROM order_items WHERE order_id = 1;
+-- Ожидается 2700
+Билет № 29
+Теоретическая часть
+Вопрос: Объясните данный Python-код. Что такое TestSuite? Зачем объединять тесты в набор? Что делает unittest.TextTestRunner(verbosity=2)? Чем verbosity=2 отличается от verbosity=1?
+
+python
+def suite():
+    s = unittest.TestSuite()
+    s.addTests(...)
+    return s
+runner = unittest.TextTestRunner(verbosity=2)
+runner.run(suite())
+Ответ:
+TestSuite – набор тестовых случаев. Объединение в набор позволяет запускать определённые группы тестов (например, только быстрые или только по одному модулю).
+TextTestRunner запускает тесты и выводит результат. verbosity – уровень детализации:
+
+0 – молчаливый,
+
+1 – стандартный (точки и итог),
+
+2 – подробный (названия каждого теста).
+
+Практическая часть
+Задание: Создайте таблицы customers и products. Наполните их данными. Напишите два «набора» диагностических SQL-запросов, сгруппированных по теме – аналог двух TestSuite:
+
+Группа 1 — Валидация данных:
+
+Найти клиентов с дублирующимися именем и городом.
+
+Найти товары с ценой ≤ 0.
+
+Найти товары с отрицательным остатком.
+
+Группа 2 — Аналитика:
+
+Подсчитать количество клиентов по городам.
+
+Найти самый дорогой товар в каждой категории.
+
+Подсчитать общую стоимость всех товаров на складе (price * stock).
+
+Выполнение:
+
+sql
+-- Таблицы и данные
+CREATE TABLE customers (id INTEGER, name TEXT, city TEXT);
+INSERT INTO customers VALUES
+    (1,'Иван','Москва'), (2,'Иван','Москва'), (3,'Мария','Казань');
+
+CREATE TABLE products (id INTEGER, name TEXT, category TEXT, price REAL, stock INTEGER);
+INSERT INTO products VALUES
+    (1,'Телефон','Электроника',30000,10),
+    (2,'Ноутбук','Электроника',50000,5),
+    (3,'Кресло','Мебель',0,2),
+    (4,'Стол','Мебель',8000,-1);
+
+-- Группа 1: Валидация
+-- дубликаты клиентов
+SELECT name, city, COUNT(*) FROM customers GROUP BY name, city HAVING COUNT(*) > 1;
+-- цена ≤ 0
+SELECT * FROM products WHERE price <= 0;
+-- отрицательный остаток
+SELECT * FROM products WHERE stock < 0;
+
+-- Группа 2: Аналитика
+-- количество клиентов по городам
+SELECT city, COUNT(*) FROM customers GROUP BY city;
+-- самый дорогой товар в каждой категории
+SELECT category, MAX(price) FROM products GROUP BY category;
+-- общая стоимость товаров на складе
+SELECT SUM(price * stock) AS total_value FROM products;
+Билет № 30
+Теоретическая часть
+Вопрос: Объясните данный Python-код. Что такое регрессионное тестирование? Почему setUp создаёт БД заново перед каждым тестом, а не один раз для всего класса? Какие операции проверяет данный тест-кейс?
+
+python
+def setUp(self):
+    self.conn = sqlite3.connect(':memory:')
+    self.conn.executescript("""CREATE TABLE orders ...""")
+Ответ:
+Регрессионное тестирование – проверка, что новые изменения не сломали существующую функциональность.
+setUp выполняется перед каждым тестом, чтобы обеспечить изолированность и чистую БД для каждого теста (тесты не зависят друг от друга).
+Тест-кейс проверяет: значение по умолчанию, количество записей после вставок, обновление статуса, удаление заказа.
+
+Практическая часть
+Задание: Создайте таблицу products (id, name, category, price, stock DEFAULT 0). Выполните четыре SQL-сценария – аналог четырёх тестовых методов:
+
+Вставьте товар без указания stock и убедитесь, что значение по умолчанию равно 0.
+
+Вставьте два товара и убедитесь, что COUNT(*) возвращает 2.
+
+Вставьте товар, обновите его цену и убедитесь, что новое значение сохранилось через SELECT.
+
+Вставьте товар, удалите его и убедитесь, что SELECT по этому id возвращает 0 строк.
+
+Выполнение:
+
+sql
+CREATE TABLE products (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    name TEXT,
+    price REAL,
+    stock INTEGER DEFAULT 0
+);
+
+-- Сценарий 1: значение по умолчанию
+INSERT INTO products (name, price) VALUES ('Телефон', 30000);
+SELECT stock FROM products WHERE id = 1;  -- 0
+
+-- Сценарий 2: количество записей
+INSERT INTO products (name, price) VALUES ('Ноутбук', 50000);
+SELECT COUNT(*) FROM products;  -- 2
+
+-- Сценарий 3: обновление цены
+UPDATE products SET price = 35000 WHERE id = 1;
+SELECT price FROM products WHERE id = 1;  -- 35000
+
+-- Сценарий 4: удаление
+DELETE FROM products WHERE id = 1;
+SELECT COUNT(*) FROM products WHERE id = 1;  -- 0
