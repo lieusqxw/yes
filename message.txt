@@ -274,6 +274,9 @@ SELECT name, price
 FROM products
 WHERE price > 10000
 ORDER BY price DESC;
+
+
+
 Билет № 6
 Теоретическая часть
 Вопрос: Объясните, что делает данная Python-функция. Для чего нужен параметр params=()? Что хранится в cur.description?
